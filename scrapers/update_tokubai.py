@@ -56,6 +56,25 @@ SALES_EXCLUDE_PATTERNS = [
 def _is_excluded(entry: dict) -> bool:
     return any(p.search(entry["name"]) for p in SALES_EXCLUDE_PATTERNS)
 
+# ── カテゴリ補正パターン ───────────────────────────────
+# AI が誤分類しやすい肉加工品を「肉類」に強制上書き
+
+MEAT_PATTERNS = [
+    re.compile(r'ウインナー|ウィンナー'),
+    re.compile(r'ソーセージ'),
+    re.compile(r'ベーコン'),
+    re.compile(r'ハム'),
+    re.compile(r'焼き鳥|焼鳥'),
+    re.compile(r'サラミ'),
+    re.compile(r'スパム'),
+]
+
+def _fix_category(entry: dict) -> dict:
+    if entry.get("category") != "肉類":
+        if any(p.search(entry["name"]) for p in MEAT_PATTERNS):
+            entry = {**entry, "category": "肉類"}
+    return entry
+
 # ── SALES ブロック置換 ─────────────────────────────────
 
 SALES_PATTERN = re.compile(
@@ -159,6 +178,9 @@ def main():
     excluded = before - len(all_entries)
     if excluded:
         print(f"除外パターンで {excluded} エントリを除去しました", file=sys.stderr)
+
+    # カテゴリ補正（肉加工品を肉類に統一）
+    all_entries = [_fix_category(e) for e in all_entries]
 
     # カテゴリ順にソート
     all_entries.sort(key=_cat_rank)

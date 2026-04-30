@@ -569,25 +569,17 @@
         const span = getGridSpan(g.from, g.to, dates);
         if (!span) return "";
         const top = [...g.items].sort((a,b) => b.prominence - a.prominence).slice(0, MAX_BANNER);
-        const lead = top[0];
-        const rest = top.slice(1);
         return `
           <div class="banner-event" data-store="${g.store}"
                style="grid-column:${span.start}/${span.end}"
                onclick="toggle(this)">
             <div class="banner-strip">
               <span class="banner-store-name">${g.store}</span>
-              <span class="banner-sep"></span>
-              <span class="banner-lead">
-                <span class="banner-lead-name">${stripOrigin(lead.name)}</span>
-                <span class="banner-lead-price">${lead.price}円</span>
-                <span class="banner-lead-unit">/${lead.unit}</span>
-              </span>
               <span class="toggle-icon">▼</span>
             </div>
-            ${rest.length ? `
+            ${top.length ? `
               <div class="banner-extra">
-                ${rest.map(it => `
+                ${top.map(it => `
                   <div class="banner-extra-item">
                     <span class="banner-extra-name">${stripOrigin(it.name)}</span>
                     <span class="banner-extra-price">${it.price}円<span class="banner-extra-unit">/${it.unit}</span></span>
@@ -693,17 +685,13 @@
               acc[k].items.push(item); return acc;
             }, {})
         ).map(g => {
-          const lead = [...g.items].sort((a,b)=>b.prominence-a.prominence)[0];
-          const rest = [...g.items].sort((a,b)=>b.prominence-a.prominence).slice(1);
+          const sorted = [...g.items].sort((a,b)=>b.prominence-a.prominence);
           return `<div class="banner-event" data-store="${g.store}" onclick="toggle(this)" style="margin-bottom:4px">
             <div class="banner-strip">
               <span class="banner-store-name">${g.store}</span>
-              <span class="banner-sep"></span>
-              <span class="banner-lead"><span class="banner-lead-name">${stripOrigin(lead.name)}</span>
-                <span class="banner-lead-price">${lead.price}円</span><span class="banner-lead-unit">/${lead.unit}</span></span>
               <span class="toggle-icon">▼</span>
             </div>
-            ${rest.length ? `<div class="banner-extra">${rest.map(it=>`
+            ${sorted.length ? `<div class="banner-extra">${sorted.map(it=>`
               <div class="banner-extra-item"><span class="banner-extra-name">${stripOrigin(it.name)}</span>
               <span class="banner-extra-price">${it.price}円<span class="banner-extra-unit">/${it.unit}</span></span></div>`).join("")}
             </div>` : ""}

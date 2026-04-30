@@ -479,6 +479,9 @@
   ];
 
   const MAX_HIGH = 5, MAX_LOW = 5, MAX_BANNER = 5;
+  const CAT_RANK = {"肉類":0,"野菜":1,"調味料":2,"冷凍食品":3,"乳製品・卵":4,"飲料":5,"菓子":6,"その他":7};
+  const catRank = it => CAT_RANK[it.category] ?? 7;
+  const bannerSort = (a,b) => (catRank(a)-catRank(b)) || (b.prominence-a.prominence);
   const DAY_NAMES = ["日","月","火","水","木","金","土"]; // 0=日〜6=土
   // 実際の今日を取得（ローカル時刻基準）
   const _now = new Date();
@@ -568,7 +571,7 @@
       Object.values(groups).map(g => {
         const span = getGridSpan(g.from, g.to, dates);
         if (!span) return "";
-        const top = [...g.items].sort((a,b) => b.prominence - a.prominence).slice(0, MAX_BANNER);
+        const top = [...g.items].sort(bannerSort);
         return `
           <div class="banner-event" data-store="${g.store}"
                style="grid-column:${span.start}/${span.end}"
@@ -685,7 +688,7 @@
               acc[k].items.push(item); return acc;
             }, {})
         ).map(g => {
-          const sorted = [...g.items].sort((a,b)=>b.prominence-a.prominence);
+          const sorted = [...g.items].sort(bannerSort);
           return `<div class="banner-event" data-store="${g.store}" onclick="toggle(this)" style="margin-bottom:4px">
             <div class="banner-strip">
               <span class="banner-store-name">${g.store}</span>

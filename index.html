@@ -84,6 +84,14 @@
     .banner-lead-price { font-weight: 700; color: #C62828; margin-left: 3px; }
     .banner-lead-unit { color: #9E9E9E; font-size: 10px; }
 
+    /* 閉じた状態: プレビューを非表示・店名を大きく中央揃え */
+    .banner-strip { position: relative; }
+    .banner-event:not(.expanded) .banner-sep,
+    .banner-event:not(.expanded) .banner-lead { display: none; }
+    .banner-event:not(.expanded) .banner-strip { justify-content: center; }
+    .banner-event:not(.expanded) .banner-store-name { font-size: 14px; }
+    .banner-event:not(.expanded) .toggle-icon { position: absolute; right: 10px; margin-left: 0; }
+
     /* expanded list: vertical, pushed down */
     .banner-extra { display: none; border-top: 1px solid rgba(0,0,0,.08); padding: 4px 10px 8px; }
     .banner-event.expanded .banner-extra { display: block; }

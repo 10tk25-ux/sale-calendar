@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>特売カレンダー</title>
+  <style>
+    :root {
+      --okee-color: #E65100;     --okee-bg: #FFB74D;     --okee-light: #FFE0B2;
+      --summit-color: #009944;   --summit-bg: #66BB6A;   --summit-light: #C8E6C9;
+      --nissin-color: #7B2341;   --nissin-bg: #C2728A;   --nissin-light: #F8BBD0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif; background: #ECEFF1; color: #212121; }
+
+    /* ── Header ── */
+    .app-header { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.1); padding: 14px 20px; position: sticky; top: 0; z-index: 100; }
+    .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .app-title { font-size: 18px; font-weight: 700; }
+    .week-nav { display: flex; align-items: center; gap: 10px; }
+    .week-nav button { background: none; border: 1px solid #CFD8DC; border-radius: 6px; padding: 4px 14px; cursor: pointer; font-size: 16px; color: #546E7A; }
+    .week-nav button:hover { background: #ECEFF1; }
+    .week-label { font-size: 14px; font-weight: 600; min-width: 180px; text-align: center; }
+    .store-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .store-chip { padding: 5px 14px; border-radius: 20px; border: 2px solid; cursor: pointer; font-size: 12px; font-weight: 700; transition: all .2s; user-select: none; }
+    .store-chip[data-store="オーケー"]          { border-color: var(--okee-color); color: var(--okee-color); }
+    .store-chip[data-store="オーケー"].active   { background: var(--okee-color); color: #fff; }
+    .store-chip[data-store="サミット"]          { border-color: var(--summit-color); color: var(--summit-color); }
+    .store-chip[data-store="サミット"].active   { background: var(--summit-color); color: #fff; }
+    .store-chip[data-store="日進"]             { border-color: var(--nissin-color); color: var(--nissin-color); }
+    .store-chip[data-store="日進"].active      { background: var(--nissin-color); color: #fff; }
+
+    /* ── Calendar ── */
+    .calendar-outer { padding: 16px; overflow-x: auto; }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(145px, 1fr));
+      column-gap: 10px;
+      min-width: 900px;
+    }
+
+    /* Day headers */
+    .headers-row { margin-bottom: 8px; }
+    .day-header { text-align: center; padding: 10px 6px 8px; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .day-header.today { background: #1565C0; color: #fff; }
+    .day-header.sat .day-date { color: #1565C0; }
+    .day-header.sun .day-date { color: #C62828; }
+    .day-header.today .day-date, .day-header.today .day-name { color: #fff; }
+    .day-name { font-size: 11px; opacity: .65; margin-bottom: 2px; }
+    .day-date { font-size: 22px; font-weight: 700; line-height: 1; }
+
+    /* ── Banner (multi-day) ── */
+    .banners-section { row-gap: 4px; margin-bottom: 10px; }
+
+    .banner-event {
+      border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow .15s;
+    }
+    .banner-event:hover { box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+    .banner-event[data-store="オーケー"]   { background: var(--okee-bg); }
+    .banner-event[data-store="サミット"]   { background: var(--summit-bg); }
+    .banner-event[data-store="日進"]       { background: var(--nissin-bg); }
+
+    /* strip: always-visible single row */
+    .banner-strip { display: flex; align-items: center; gap: 8px; padding: 7px 10px; min-height: 34px; }
+
+    .banner-store-name { font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+    .banner-event[data-store="オーケー"]   .banner-store-name { color: var(--okee-color); }
+    .banner-event[data-store="サミット"]   .banner-store-name { color: var(--summit-color); }
+    .banner-event[data-store="日進"]       .banner-store-name { color: #fff; }
+    .banner-event[data-store="日進"]       .banner-lead-name  { color: #fff; }
+    .banner-event[data-store="日進"]       .banner-lead-price { color: #fff; }
+    .banner-event[data-store="日進"]       .banner-lead-unit  { color: rgba(255,255,255,.75); }
+    .banner-event[data-store="日進"]       .banner-extra-name  { color: #fff; }
+    .banner-event[data-store="日進"]       .banner-extra-price { color: #fff; }
+    .banner-event[data-store="日進"]       .banner-extra-unit  { color: rgba(255,255,255,.75); }
+
+    .banner-sep { width: 1px; height: 14px; background: rgba(0,0,0,.15); flex-shrink: 0; }
+    .banner-lead { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .banner-lead-name { color: #424242; }
+    .banner-lead-price { font-weight: 700; color: #C62828; margin-left: 3px; }
+    .banner-lead-unit { color: #9E9E9E; font-size: 10px; }
+
+    /* expanded list: vertical, pushed down */
+    .banner-extra { display: none; border-top: 1px solid rgba(0,0,0,.08); padding: 4px 10px 8px; }
+    .banner-event.expanded .banner-extra { display: block; }
+    .banner-extra-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(0,0,0,.06);
+      gap: 6px;
+    }
+    .banner-extra-item:last-child { border-bottom: none; }
+    .banner-extra-name { font-size: 11px; color: #424242; flex: 1; }
+    .banner-extra-price { font-size: 12px; font-weight: 700; color: #C62828; white-space: nowrap; }
+    .banner-extra-unit { font-size: 10px; color: #9E9E9E; white-space: nowrap; }
+
+    .toggle-icon {
+      font-size: 10px;
+      color: rgba(0,0,0,.35);
+      flex-shrink: 0;
+      margin-left: auto;
+      transition: transform .2s;
+      padding-left: 4px;
+    }
+    .expanded .toggle-icon { transform: rotate(180deg); }
+
+    /* ── Daily columns ── */
+    .daily-section { align-items: start; }
+    .day-col { display: flex; flex-direction: column; gap: 6px; }
+
+    .sale-card {
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      border-left: 4px solid;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow .15s;
+    }
+    .sale-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.14); }
+    .sale-card[data-store="オーケー"]   { border-color: var(--okee-color); }
+    .sale-card[data-store="サミット"]   { border-color: var(--summit-color); }
+    .sale-card[data-store="日進"]       { border-color: var(--nissin-color); }
+
+    .card-header {
+      padding: 6px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sale-card[data-store="オーケー"]   .card-header { background: var(--okee-light);       color: var(--okee-color); }
+    .sale-card[data-store="サミット"]   .card-header { background: var(--summit-light);     color: var(--summit-color); }
+    .sale-card[data-store="日進"]       .card-header { background: var(--nissin-light);     color: var(--nissin-color); }
+
+    .card-body { padding: 6px 10px 8px; }
+    .section-label { font-size: 9px; font-weight: 700; color: #90A4AE; letter-spacing: .8px; text-transform: uppercase; margin: 5px 0 3px; }
+    .section-label:first-child { margin-top: 0; }
+    .section-divider { height: 1px; background: #ECEFF1; margin: 4px 0; }
+
+    /* collapsed: hide .extra items and sections */
+    .sale-card:not(.expanded) .extra { display: none; }
+
+    .item-row { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 0; border-bottom: 1px solid #F5F5F5; gap: 4px; }
+    .item-row:last-child { border-bottom: none; }
+    .item-name { font-size: 11px; color: #424242; flex: 1; white-space: nowrap; overflow: hidden; }
+    .banner-extra-name { white-space: nowrap; overflow: hidden; }
+    .item-price-wrap { white-space: nowrap; }
+    .item-price { font-size: 12px; font-weight: 700; color: #C62828; }
+    .item-unit { font-size: 10px; color: #9E9E9E; }
+    .priority-low .item-name { color: #757575; }
+    .priority-low .item-price { color: #9E9E9E; }
+
+    .empty-day { background: #fff; border-radius: 8px; text-align: center; color: #CFD8DC; font-size: 11px; padding: 20px 8px; }
+
+    /* ── Summit monthly band ── */
+    .summit-row { margin: 6px 0 4px; row-gap: 0; }
+    .summit-band-cell {
+      background: var(--summit-bg);
+      border-radius: 6px;
+      overflow: hidden;
+      cursor: pointer;
+      user-select: none;
+      transition: box-shadow .15s;
+    }
+    .summit-band-cell:hover { box-shadow: 0 2px 8px rgba(191,54,12,.2); }
+    .summit-band-header {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 9px; min-height: 30px;
+    }
+    .summit-band-store { font-size: 11px; font-weight: 700; color: var(--summit-color); white-space: nowrap; flex-shrink: 0; }
+    .summit-band-count { font-size: 10px; color: #795548; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .summit-band-cell .toggle-icon { font-size: 9px; color: rgba(0,0,0,.3); margin-left: auto; flex-shrink: 0; transition: transform .2s; }
+    .summit-band-cell.expanded .toggle-icon { transform: rotate(180deg); }
+    .summit-band-list { display: none; border-top: 1px solid rgba(191,54,12,.15); padding: 5px 9px 7px; }
+    .summit-band-cell.expanded .summit-band-list { display: block; }
+    .summit-band-item { font-size: 10px; color: #424242; padding: 2px 0; border-bottom: 1px solid rgba(0,0,0,.05); }
+    .summit-band-item:last-child { border-bottom: none; }
+    .summit-band-empty { background: transparent; border-radius: 6px; text-align: center; color: #CFD8DC; font-size: 10px; padding: 8px 4px; }
+
+    /* ── Mobile 3-day snap scroll ── */
+    @media (max-width: 639px) {
+      body { min-width: 0; }
+      .app-header { padding: 10px 14px; position: sticky; top: 0; z-index: 100; }
+      .app-title { font-size: 15px; }
+      .week-nav button { padding: 4px 10px; }
+      .week-label { font-size: 12px; min-width: 130px; }
+      .store-chip { font-size: 11px; padding: 4px 10px; }
+      .calendar-outer { padding: 0; }
+
+      #calMobile {
+        height: calc(100dvh - 90px);
+        overflow-y: scroll;
+        scroll-snap-type: y mandatory;
+        -webkit-overflow-scrolling: touch;
+      }
+      .mobile-day {
+        min-height: calc(100dvh - 90px);
+        scroll-snap-align: start;
+        border-top: 3px solid #ECEFF1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .mobile-day.sat { border-top-color: #1565C0; }
+      .mobile-day.sun { border-top-color: #C62828; }
+      .mobile-day.today { border-top-color: var(--summit-red, #BF360C); }
+
+      .mobile-day-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px 8px;
+        background: #fff;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid #ECEFF1;
+      }
+      .mobile-day-header.today { background: #FBE9E7; }
+      .mobile-day-num { font-size: 28px; font-weight: 800; line-height: 1; color: #212121; }
+      .mobile-day.sat .mobile-day-num { color: #1565C0; }
+      .mobile-day.sun .mobile-day-num { color: #C62828; }
+      .mobile-day-dow { font-size: 14px; color: #90A4AE; }
+      .mobile-today-badge {
+        margin-left: 4px;
+        background: #BF360C;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 10px;
+      }
+      .mobile-day-body {
+        padding: 10px 14px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .mobile-day-body .banner-event { margin-bottom: 6px; }
+      .mobile-day-body .banner-strip { padding: 9px 12px; }
+      .mobile-day-body .banner-store-name { font-size: 12px; }
+      .mobile-day-body .banner-lead-name { font-size: 13px; }
+      .mobile-day-body .banner-lead-price { font-size: 14px; }
+      .mobile-day-body .item-row { padding: 5px 0; }
+      .mobile-day-body .item-name { font-size: 13px; }
+      .mobile-day-body .item-price { font-size: 14px; }
+      .mobile-day-body .summit-band-cell { margin-bottom: 6px; }
+      .mobile-day-body .summit-band-header { padding: 9px 12px; min-height: 36px; }
+      .mobile-day-body .summit-band-store { font-size: 12px; }
+      .mobile-day-body .summit-band-count { font-size: 11px; }
+      .mobile-day-body .summit-band-item { font-size: 12px; padding: 4px 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="header-top">
+    <div class="app-title">特売カレンダー</div>
+    <div class="week-nav">
+      <button onclick="changeWeek(-1)">&#8249;</button>
+      <span class="week-label" id="weekLabel"></span>
+      <button onclick="changeWeek(1)">&#8250;</button>
+    </div>
+  </div>
+  <div class="store-filters" id="storeFilters"></div>
+</div>
+
+<div class="calendar-outer">
+  <!-- デスクトップ（7列グリッド） -->
+  <div id="calDesktop">
+    <div class="cal-grid headers-row" id="headersRow"></div>
+    <div class="cal-grid banners-section" id="bannersSection"></div>
+    <div class="cal-grid summit-row" id="summitRow"></div>
+    <div class="cal-grid daily-section" id="dailySection"></div>
+  </div>
+  <!-- モバイル（縦スクロール 3日） -->
+  <div id="calMobile" style="display:none"></div>
+</div>
+
+<script>
+  const STORES = {
+    "オーケー":   "#2E7D32",
+    "サミット":   "#BF360C",
+    "日進":       "#6A1B9A"
+  };
+
+  // サミット 品種別割引カレンダー（月間）自動更新: 2026-04-30 02:00
+  const SUMMIT_MONTHLY = {"2026-05-01": ["カレー・シチュー", "味噌・インスタント味噌汁", "チーズ・マーガリン", "制汗剤・日焼け止め"], "2026-05-02": ["えび", "ひき肉", "練製品（かまぼこ・ちくわ・さつま揚等）", "瓶詰", "防虫・芳香・消臭・除湿・殺虫剤等", "日本茶・中国茶・麦茶・紅茶", "化粧石鹸・ボディソープ・洗剤等", "ジャム・はちみつ"], "2026-05-03": ["えび", "ひき肉", "練製品（かまぼこ・ちくわ・さつま揚等）", "瓶詰", "防虫・芳香・消臭・除湿・殺虫剤等", "日本茶・中国茶・麦茶・紅茶", "化粧石鹸・ボディソープ・洗剤等", "ジャム・はちみつ"], "2026-05-04": ["えび", "ひき肉", "練製品（かまぼこ・ちくわ・さつま揚等）", "瓶詰", "防虫・芳香・消臭・除湿・殺虫剤等", "日本茶・中国茶・麦茶・紅茶", "化粧石鹸・ボディソープ・洗剤等", "ジャム・はちみつ"], "2026-05-05": ["えび", "ハム・ソーセージ・ベーコン 等", "練製品（かまぼこ・ちくわ・さつま揚等）", "瓶詰", "防虫・芳香・消臭・除湿・殺虫剤等", "日本茶・中国茶・麦茶・紅茶", "化粧石鹸・ボディソープ・洗剤等", "ジャム・はちみつ"], "2026-05-06": ["干物", "シャンプー・コンディショナー・ヘアカラー", "ジャム・はちみつ"], "2026-05-07": ["しらす・ちりめん", "ひき肉", "干物", "乾麺", "シャンプー・コンディショナー・ヘアカラー", "ジャム・はちみつ"], "2026-05-08": ["干物", "乾麺", "シャンプー・コンディショナー・ヘアカラー", "ジャム・はちみつ"], "2026-05-09": ["菓子", "ハム・ソーセージ・ベーコン等", "ふりかけ・お茶漬けの素", "シャンプー・コンディショナー・ヘアカラー"], "2026-05-10": ["菓子", "ハム・ソーセージ・ベーコン等", "ふりかけ・お茶漬けの素", "シャンプー・コンディショナー・ヘアカラー", "マヨネーズ・ドレッシング"], "2026-05-11": ["ひき肉", "お茶漬けの素", "米", "シャンプー・コンディショナー・ヘアカラー", "マヨネーズ・ドレッシング"], "2026-05-12": ["マヨネーズ・ドレッシング"], "2026-05-13": ["パン", "電池・照明器具", "缶詰", "レギュラーコーヒー", "キムチ", "マヨネーズ・ドレッシング"], "2026-05-14": ["たらこ・明太子", "電池・照明器具", "缶詰", "レギュラーコーヒー", "キムチ", "マヨネーズ・ドレッシング"], "2026-05-15": ["缶詰", "レギュラーコーヒー", "キムチ", "マヨネーズ・ドレッシング"], "2026-05-16": ["ハム・ソーセージ・ベーコン 等", "ヨーグルト・プリン 等", "防虫・芳香・消臭・除湿・殺虫剤 等", "ラップ・ホイル・ゴミ袋・レンジアルミ", "缶詰", "レギュラーコーヒー", "キムチ", "酢・ぽん酢"], "2026-05-17": ["ハム・ソーセージ・ベーコン 等", "ヨーグルト・プリン 等", "防虫・芳香・消臭・除湿・殺虫剤 等", "ラップ・ホイル・ゴミ袋・レンジアルミ", "缶詰", "レギュラーコーヒー", "キムチ", "酢・ぽん酢"], "2026-05-18": ["ひき肉", "ハム・ソーセージ・ベーコン 等", "ヨーグルト・プリン 等", "防虫・芳香・消臭・除湿・殺虫剤 等", "ラップ・ホイル・ゴミ袋・レンジアルミ", "缶詰", "レギュラーコーヒー", "キムチ", "酢・ぽん酢"], "2026-05-19": ["酢・ぽん酢"], "2026-05-20": ["しらす・ちりめん", "制汗剤・日焼け止め", "パスタ・パスタソース", "味噌・インスタント味噌汁", "酢・ぽん酢"], "2026-05-21": ["たらこ・明太子", "ひき肉", "しらす・ちりめん", "制汗剤・日焼け止め", "パスタ・パスタソース", "味噌・インスタント味噌汁", "酢・ぽん酢"], "2026-05-22": ["しらす・ちりめん", "制汗剤・日焼け止め", "パスタ・パスタソース", "味噌・インスタント味噌汁", "酢・ぽん酢"], "2026-05-23": ["菓子", "練製品（かまぼこ・ちくわ・さつま揚 等）", "パスタ・パスタソース", "味噌・インスタント味噌汁", "カレー・シチュー"], "2026-05-24": ["菓子", "ハム・ソーセージ・ベーコン 等", "乾麺", "ワイン", "チーズ・マーガリン", "歯磨き・歯ブラシ", "パスタ・パスタソース", "味噌・インスタント味噌汁", "カレー・シチュー"], "2026-05-25": ["しらす・ちりめん", "ひき肉", "ハム・ソーセージ・ベーコン 等", "乾麺", "ワイン", "チーズ・マーガリン", "歯磨き・歯ブラシ", "パスタ・パスタソース", "味噌・インスタント味噌汁", "カレー・シチュー"], "2026-05-26": ["カレー・シチュー"], "2026-05-27": ["パン", "瓶詰", "オートミール・シリアル", "カレー・シチュー"], "2026-05-28": ["日本茶・中国茶・麦茶・紅茶", "香辛料", "化粧石鹸・ボディソープ・入浴剤等", "海苔", "マヨネーズ・ドレッシング", "カレー・シチュー"], "2026-05-29": ["防虫・芳香・消臭・除湿・殺虫剤 等", "日本茶・中国茶・麦茶・紅茶", "香辛料", "化粧石鹸・ボディソープ・入浴剤等", "海苔", "マヨネーズ・ドレッシング", "カレー・シチュー"], "2026-05-30": ["ハム・ソーセージ・ベーコン等", "日本茶・中国茶・麦茶・紅茶", "香辛料", "化粧石鹸・ボディソープ・入浴剤等", "海苔", "マヨネーズ・ドレッシング"], "2026-05-31": ["ハム・ソーセージ・ベーコン等", "ヨーグルト・プリン 等", "電池・照明器具", "日本茶・中国茶・麦茶・紅茶", "香辛料", "化粧石鹸・ボディソープ・入浴剤等", "海苔", "マヨネーズ・ドレッシング"]};
+
+  const SALES = [
+    // 自動更新: 2026-04-30 20:00
+    // ── 肉類 ──
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"和牛（黒毛和種）A4・A5等級 サーロイン ステーキカット", price:621, unit:"100gあたり", priority:2, prominence:4, category:"肉類" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"豚バラ肉 極厚切り", price:219, unit:"100gあたり", priority:2, prominence:3, category:"肉類" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"若鶏もも肉 角切り", price:135, unit:"100gあたり", priority:2, prominence:3, category:"肉類" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"豚肉と玉葱の串カツ", price:291, unit:"6本+1本増量", priority:2, prominence:3, category:"肉類" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"薄衣のフライドチキンセット", price:661, unit:"6本", priority:2, prominence:3, category:"肉類" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"塩胡椒で食べるハンバーグヴィアンド弁当", price:446, unit:"1パック", priority:2, prominence:2, category:"肉類" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"備長炭 焼鳥盛合せ ももねぎま（醤油だれ味・塩だれ味）", price:581, unit:"各10本", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ベーコンブロック", price:344, unit:"100g(約400g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"マジョラムソーセージ", price:1080, unit:"1pack(約500g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ポークウインナー", price:560, unit:"1pack(4pieces)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ブラックアンガス牛 リブロース", price:1188, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"味わい牛 キューブロール", price:972, unit:"100g", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"牛リブロース", price:684, unit:"100g", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"黒毛和牛 モモステーキ", price:1200, unit:"約200g", priority:2, prominence:5, category:"肉類" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"日進ハム スペシャルパック", price:1900, unit:"5点セット", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ショートグレイン サーロインステーキ", price:999, unit:"約250g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"黒毛和牛 切り落とし", price:400, unit:"100g", priority:2, prominence:5, category:"肉類" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ベーコン スライス", price:352, unit:"100g(about 400g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ホワイトハム スライス", price:404, unit:"100g(about 180g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ノルウェー アトランティック スモークサーモン スライス(ディル)", price:1980, unit:"300g", priority:2, prominence:2, category:"肉類" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ホワイトハム シルクカット", price:437, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ジャンボン ド バイヨンヌ スライス", price:1080, unit:"1pack(80g)", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"サラミ ロゼットスライス", price:1000, unit:"1pack(150g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"豚ロース肉トンカツ用", price:130, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"鴨ムネ肉 コンフィ", price:702, unit:"100g", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ジェンセンズ ダックパテ", price:448, unit:"80g", priority:2, prominence:2, category:"肉類" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"鶏モモ肉 骨付き", price:145, unit:"100g", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ビーフ リブアイロール", price:684, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ビーフ フランクステーキ", price:369, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"牛挽肉", price:232, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"鶏モモ", price:141, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"エスプーニャ アソートパック", price:1230, unit:"1pack(約120g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"チョリソースライス", price:530, unit:"1pack(60g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"フエスライス", price:428, unit:"1pack(約100g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"日進ハム製 チョリソ", price:530, unit:"each", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"味わい葡萄牛", price:767, unit:"100g", priority:2, prominence:5, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"テンダーロイン ヒレ", price:908, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"味わい葡萄牛 サーロイン", price:616, unit:"100g", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"日進ハム製 ハム・ソーセージスペシャルセット", price:1800, unit:"1セット", priority:2, prominence:4, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"日進ハム製 ボロニアミニステーキ", price:324, unit:"100g", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"日進ハム製 ケーゼヴルストヒェン", price:456, unit:"1pack(3pieces)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"VOLPI プロシュート スライス", price:648, unit:"1pack(40g)", priority:2, prominence:3, category:"肉類" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"キューブロール", price:767, unit:"100g", priority:2, prominence:3, category:"肉類" },
+    // ── 野菜 ──
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"かぼちゃ（ほっこり種）", price:98, unit:"1個", priority:2, prominence:3, category:"野菜" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"ピーマン", price:98, unit:"1袋", priority:2, prominence:3, category:"野菜" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"春にんじん", price:98, unit:"1袋", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ボイルドコーン", price:270, unit:"1pack", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"カボチャ", price:35, unit:"100g", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ピーマン", price:138, unit:"1pack", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"紫ニンニク", price:248, unit:"1piece", priority:2, prominence:4, category:"野菜" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ニンジン Sサイズ", price:120, unit:"1pack（約500g）", priority:2, prominence:2, category:"野菜" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"アボカド", price:198, unit:"1piece", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ロメインレタス", price:198, unit:"1head", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ブラウンマッシュルーム", price:298, unit:"1pack", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"乾燥ポルチーニ", price:378, unit:"10g", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ズッキーニ", price:198, unit:"1piece", priority:2, prominence:4, category:"野菜" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"シャロット", price:110, unit:"100g", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ブラウンマッシュルーム", price:300, unit:"1pack", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ラディッシュ", price:150, unit:"1pack", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"タイム", price:298, unit:"1pack", priority:2, prominence:2, category:"野菜" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ローズマリー", price:298, unit:"1pack", priority:2, prominence:2, category:"野菜" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ナス", price:258, unit:"1pack(3pieces)", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"紫ニンニク", price:100, unit:"1piece", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"キャベツ", price:128, unit:"1piece", priority:2, prominence:4, category:"野菜" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"パプリカ赤/黄色", price:298, unit:"1piece", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"レモン", price:480, unit:"1pack(5pieces)", priority:2, prominence:3, category:"野菜" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"新小ジャガイモ", price:238, unit:"1pack", priority:2, prominence:4, category:"野菜" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"新タマネギ", price:48, unit:"100g", priority:2, prominence:4, category:"野菜" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"にんじん", price:58, unit:"1piece", priority:2, prominence:4, category:"野菜" },
+    // ── 調味料 ──
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"mizkan 五目ちらし（ちらし寿司の素）", price:182, unit:"2〜3人前×2袋", priority:1, prominence:3, category:"調味料" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"ヤマサ 昆布つゆ 3倍濃縮", price:198, unit:"1L", priority:1, prominence:3, category:"調味料" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"桃屋 穂先メンマ やわらぎ 辣油味 お徳用", price:288, unit:"210g", priority:1, prominence:2, category:"調味料" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"桃屋 味付榨菜 お徳用", price:288, unit:"165g", priority:1, prominence:2, category:"調味料" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"オーケー 穀物酢", price:87, unit:"500ml", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ハンツ トマトソース缶", price:228, unit:"227g", priority:1, prominence:4, category:"調味料" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ハンツ BBQソース", price:599, unit:"510g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ジェーンズ クレイジーミックスアップソルト", price:698, unit:"100g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"フレンチ クラシックイエローマスタード", price:464, unit:"226g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ラス チーズソース", price:399, unit:"250g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ハニーマスタード", price:599, unit:"each", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ロコロ パッサータ", price:298, unit:"680g", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"タコスパイスミックス", price:198, unit:"28g", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ワカモレ ディップミックス", price:198, unit:"15g", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ソル・レオーネ ビオ レッドラベル オーガニック EXV オリーブオイル", price:1180, unit:"250ml", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ソル・レオーネ ダイストマト テトラパック", price:198, unit:"390g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ハインツ アメリカンソース", price:842, unit:"280g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"オランデーズソース", price:218, unit:"100g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"フュメ ド ポワソン", price:798, unit:"1個", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"マイユ ディジョンマスタード", price:298, unit:"1個", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"粒入りマスタード", price:298, unit:"1個", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"コントドプロヴァンス イチジクジャム", price:598, unit:"1個", priority:1, prominence:2, category:"調味料" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ミラソル 種抜きグリーンオリーブ缶", price:328, unit:"300g", priority:1, prominence:4, category:"調味料" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"フジボウ EXVオリーブオイル", price:798, unit:"456g", priority:1, prominence:4, category:"調味料" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"アヒージョシーズニング", price:198, unit:"20g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"パプリカパウダー", price:378, unit:"25g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"マコーミック パエリアの素", price:428, unit:"90g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"フラガタ 種抜きグリーンオリーブ", price:298, unit:"113g", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"キューネ ドレッシング", price:378, unit:"250mL", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"イタリアンドレッシング", price:138, unit:"150mL", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"イタリアンシーザー", price:138, unit:"150mL", priority:1, prominence:3, category:"調味料" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"フレンチドレッシング", price:138, unit:"150mL", priority:1, prominence:3, category:"調味料" },
+    // ── 冷凍食品 ──
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"やきとり（もも串・ねぎま串）冷凍品", price:669, unit:"各10本", priority:2, prominence:3, category:"冷凍食品" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"牛丼の具", price:1379, unit:"120g×5個", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"海老五目春巻", price:513, unit:"10本+1本(550g)", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ピザシラス&マリナーラソース", price:880, unit:"203g", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"シーフードミックス", price:1498, unit:"1kg", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"マッケイン ハッシュドポテト", price:748, unit:"10pieces", priority:1, prominence:4, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"オクターブ チョコチーズケーキ各種", price:198, unit:"40g", priority:1, prominence:2, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"デルソーレ マルゲリータ", price:798, unit:"343g(1piece)", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ベラミーズ パイシート", price:598, unit:"2slices", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ブルゴーニュ風エスカルゴ", price:1598, unit:"12pieces", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"鴨のフォアグラ", price:900, unit:"1pack(25g)", priority:2, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ミニクロワッサン", price:498, unit:"8pieces 170g", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"冷凍 マンゴーチャンク", price:328, unit:"500g", priority:1, prominence:4, category:"冷凍食品" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"冷凍 殻むきえび", price:648, unit:"250g", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"冷凍 ボイルムール貝 ガーリックバター", price:550, unit:"454g", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"冷凍 チュロス シナモンシュガー付", price:528, unit:"227g", priority:1, prominence:3, category:"冷凍食品" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"フライドポテト（ローストリング）", price:399, unit:"1kg", priority:1, prominence:4, category:"冷凍食品" },
+    // ── 乳製品・卵 ──
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ブラウンエッグス(卵)", price:248, unit:"6pieces", priority:2, prominence:4, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ジュコビア スライスチェダーチーズ", price:518, unit:"20slices", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"八ヶ岳高原 プレーンヨーグルト", price:228, unit:"400g", priority:2, prominence:2, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"サワークリーム", price:238, unit:"90ml", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"豊富 プレーンヨーグルト", price:238, unit:"400g", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"中沢乳業 無塩バター", price:1180, unit:"450g", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"中沢 フレッシュクリーム 36%", price:298, unit:"200mL", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"スタス ベヤズ ペイニール ホワイトチーズ", price:1299, unit:"1pack", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ティネ ブルノスト スムースキャラメル", price:1499, unit:"1pack", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"イズニー 有塩バター", price:118, unit:"1pack(10g)", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"茶美人 BROWN EGGS", price:268, unit:"6pieces", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ケソクラド チーズ3ヶ月熟成", price:2299, unit:"100g", priority:2, prominence:4, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"イベリコチーズ", price:699, unit:"80g", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ダノンビオ 脂肪0 砂糖不使用", price:218, unit:"75g×4", priority:2, prominence:4, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"岡崎おうはん平飼い卵", price:328, unit:"6pieces", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"小岩井 生乳100%ヨーグルト", price:248, unit:"400g", priority:2, prominence:4, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"ジャックス スライスゴーダクミン", price:599, unit:"100g", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"キャブリドゥ", price:1799, unit:"125g", priority:2, prominence:3, category:"乳製品・卵" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"ガーリックバターバゲット", price:298, unit:"1piece", priority:2, prominence:3, category:"乳製品・卵" },
+    // ── 飲料 ──
+    { store:"オーケー", from:"2026-04-28", to:"2026-04-28", name:"ペプシ BIG ZERO Americana", price:79, unit:"600ml", priority:1, prominence:3, category:"飲料" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"アーモンドブリーズ", price:498, unit:"1000g", priority:1, prominence:3, category:"飲料" },
+    // ── 菓子 ──
+    { store:"オーケー", from:"2026-04-25", to:"2026-04-25", name:"ヤマザキ メロンのショートケーキ", price:297, unit:"2個", priority:1, prominence:3, category:"菓子" },
+    { store:"オーケー", from:"2026-04-25", to:"2026-04-25", name:"ヤマザキ クッキー&クリームケーキ", price:297, unit:"2個", priority:1, prominence:3, category:"菓子" },
+    { store:"オーケー", from:"2026-04-26", to:"2026-04-26", name:"不二家 ちいかわ ふにゃふにゃミルキー シュークリーム味", price:147, unit:"32g", priority:1, prominence:2, category:"菓子" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"ロッキーマウンテン メガマシュマロ", price:670, unit:"340g", priority:1, prominence:3, category:"菓子" },
+    { store:"日進", from:"2026-04-29", to:"2026-05-06", name:"マクビティ ダイジェスティブビスケット ミルクチョコレート", price:88, unit:"1piece", priority:1, prominence:4, category:"菓子" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"トルティーヤチップス ソルト", price:298, unit:"185g", priority:1, prominence:2, category:"菓子" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"ブレッツ ポテトチップス ポルチーニ", price:480, unit:"125g", priority:1, prominence:3, category:"菓子" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"パスキエ ミニトースト プレーン", price:288, unit:"36pieces", priority:1, prominence:2, category:"菓子" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ピコス", price:298, unit:"125g", priority:1, prominence:3, category:"菓子" },
+    { store:"日進", from:"2026-03-21", to:"2026-03-29", name:"ザヌイ トルティーヤチップス", price:348, unit:"200g", priority:1, prominence:4, category:"菓子" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"いちごトリュフチョコ", price:550, unit:"5pieces", priority:1, prominence:4, category:"菓子" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"桜のスフレパンケーキミックス", price:540, unit:"254g", priority:1, prominence:4, category:"菓子" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"ミルクチョコレート", price:298, unit:"1個", priority:1, prominence:3, category:"菓子" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"ホワイトチョコレート", price:298, unit:"1個", priority:1, prominence:3, category:"菓子" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"桜×チョコレートカシュー", price:298, unit:"35g", priority:1, prominence:3, category:"菓子" },
+    { store:"日進", from:"2026-03-07", to:"2026-03-15", name:"レイズ ポテトチップス", price:399, unit:"110g", priority:1, prominence:4, category:"菓子" },
+    // ── その他 ──
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"キューピー 玉九 錦糸たまご", price:154, unit:"40g", priority:1, prominence:2, category:"その他" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"茜丸 むきあん", price:538, unit:"500g", priority:1, prominence:3, category:"その他" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"フーズオアシス 黒酢もずく", price:194, unit:"80g×4カップ", priority:1, prominence:3, category:"その他" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"日配食品 シマダヤ 焼そば 鉄板麺 お好みソース味", price:184, unit:"2食", priority:1, prominence:2, category:"その他" },
+    { store:"オーケー", from:"2026-04-27", to:"2026-05-03", name:"山徳 塩のり", price:399, unit:"3切18枚(全型6枚)", priority:1, prominence:2, category:"その他" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ラティーノ フジッリ", price:110, unit:"250g", priority:1, prominence:2, category:"その他" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"三太郎農園 コシヒカリ", price:1999, unit:"2kg", priority:1, prominence:2, category:"その他" },
+    { store:"日進", from:"2026-04-17", to:"2026-04-26", name:"ソフトフラワートルティーヤ", price:498, unit:"320g(8slices)", priority:1, prominence:2, category:"その他" },
+    { store:"日進", from:"2026-04-04", to:"2026-04-12", name:"そばガレットミックス", price:448, unit:"200g", priority:1, prominence:3, category:"その他" },
+  ];
+
+  const MAX_HIGH = 5, MAX_LOW = 5, MAX_BANNER = 5;
+  const DAY_NAMES = ["日","月","火","水","木","金","土"]; // 0=日〜6=土
+  // 実際の今日を取得（ローカル時刻基準）
+  const _now = new Date();
+  const TODAY = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+  const activeStores = new Set(Object.keys(STORES));
+  let weekOffset = 0;
+
+  function toYMD(d) { return d.toISOString().split("T")[0]; }
+
+  function isMobile() { return window.innerWidth < 640; }
+
+  // today を先頭にした N 日間
+  function getDates(n, offset) {
+    const base = new Date(TODAY);
+    return Array.from({ length: n }, (_, i) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i + offset * n);
+      return d;
+    });
+  }
+
+  // "●●産" を除去（埼玉県産・国産・国内産・アメリカ産 など）
+  function stripOrigin(name) {
+    return name.replace(/\S*産\s*/g, '').trim();
+  }
+
+  function getGridSpan(from, to, weekDates) {
+    const wStart = toYMD(weekDates[0]), wEnd = toYMD(weekDates[weekDates.length-1]);
+    if (to < wStart || from > wEnd) return null;
+    let si = weekDates.findIndex(d => toYMD(d) >= from); if (si === -1) si = 0;
+    let ei = weekDates.findIndex(d => toYMD(d) > to);    if (ei === -1) ei = 7;
+    return { start: si + 1, end: ei + 1 };
+  }
+
+  function toggle(el) { el.classList.toggle('expanded'); requestAnimationFrame(fitItems); }
+  function changeWeek(dir) {
+    if (weekOffset + dir < 0) return; // 過去に戻れない
+    weekOffset += dir; render();
+  }
+  function toggleStore(s) { activeStores.has(s) ? activeStores.delete(s) : activeStores.add(s); render(); }
+
+  function itemRow(item, cls, extra) {
+    return `<div class="item-row ${cls}${extra ? ' extra' : ''}">
+      <span class="item-name">${stripOrigin(item.name)}</span>
+      <span class="item-price-wrap">
+        <span class="item-price">${item.price}円</span><span class="item-unit">/${item.unit}</span>
+      </span>
+    </div>`;
+  }
+
+  function _render() {
+    const mobile = isMobile();
+    const N = mobile ? 3 : 7;
+    const dates = getDates(N, weekOffset);
+    const m1 = dates[0].getMonth()+1, d1 = dates[0].getDate();
+    const m2 = dates[N-1].getMonth()+1, d2 = dates[N-1].getDate();
+    document.getElementById("weekLabel").textContent =
+      `${dates[0].getFullYear()}年 ${m1}/${d1} 〜 ${m2}/${d2}`;
+
+    // モバイル：デスクトップグリッドを隠し、縦スクロールビューを使う
+    document.getElementById("calDesktop").style.display = mobile ? "none" : "";
+    document.getElementById("calMobile").style.display  = mobile ? ""     : "none";
+
+    // Chips
+    document.getElementById("storeFilters").innerHTML =
+      Object.keys(STORES).map(s => `
+        <div class="store-chip ${activeStores.has(s)?"active":""}" data-store="${s}" onclick="toggleStore('${s}')">${s}</div>
+      `).join("");
+
+    // Headers
+    document.getElementById("headersRow").innerHTML = dates.map((d) => {
+      const ds = toYMD(d);
+      const dow = d.getDay();
+      const cls = ["day-header", ds===TODAY&&"today", dow===6&&"sat", dow===0&&"sun"].filter(Boolean).join(" ");
+      return `<div class="${cls}"><div class="day-name">${DAY_NAMES[dow]}</div><div class="day-date">${d.getDate()}</div></div>`;
+    }).join("");
+
+    // Banners: multi-day, grouped by (store, from, to)
+    const groups = {};
+    SALES.filter(s => s.from !== s.to && activeStores.has(s.store)).forEach(item => {
+      const k = `${item.store}|${item.from}|${item.to}`;
+      if (!groups[k]) groups[k] = { store:item.store, from:item.from, to:item.to, items:[] };
+      groups[k].items.push(item);
+    });
+
+    document.getElementById("bannersSection").innerHTML =
+      Object.values(groups).map(g => {
+        const span = getGridSpan(g.from, g.to, dates);
+        if (!span) return "";
+        const top = [...g.items].sort((a,b) => b.prominence - a.prominence).slice(0, MAX_BANNER);
+        const lead = top[0];
+        const rest = top.slice(1);
+        return `
+          <div class="banner-event" data-store="${g.store}"
+               style="grid-column:${span.start}/${span.end}"
+               onclick="toggle(this)">
+            <div class="banner-strip">
+              <span class="banner-store-name">${g.store}</span>
+              <span class="banner-sep"></span>
+              <span class="banner-lead">
+                <span class="banner-lead-name">${stripOrigin(lead.name)}</span>
+                <span class="banner-lead-price">${lead.price}円</span>
+                <span class="banner-lead-unit">/${lead.unit}</span>
+              </span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            ${rest.length ? `
+              <div class="banner-extra">
+                ${rest.map(it => `
+                  <div class="banner-extra-item">
+                    <span class="banner-extra-name">${stripOrigin(it.name)}</span>
+                    <span class="banner-extra-price">${it.price}円<span class="banner-extra-unit">/${it.unit}</span></span>
+                  </div>
+                `).join("")}
+              </div>
+            ` : ""}
+          </div>`;
+      }).join("");
+
+    // Summit monthly band
+    const summitRowEl = document.getElementById('summitRow');
+    if (!activeStores.has('サミット')) {
+      summitRowEl.innerHTML = '';
+    } else {
+      summitRowEl.innerHTML = dates.map(date => {
+        const ds = toYMD(date);
+        const items = SUMMIT_MONTHLY[ds] || [];
+        if (!items.length) {
+          return `<div class="summit-band-empty">—</div>`;
+        }
+        const preview = items[0];
+        return `
+          <div class="summit-band-cell" onclick="this.classList.toggle('expanded');requestAnimationFrame(fitItems)">
+            <div class="summit-band-header">
+              <span class="summit-band-store">サミット</span>
+              <span class="banner-sep"></span>
+              <span class="summit-band-count">${preview}${items.length > 1 ? ` 他${items.length-1}品目` : ''}</span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            <div class="summit-band-list">
+              ${items.map(i => `<div class="summit-band-item">・${i}</div>`).join('')}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // Daily columns: day-specific items only
+    document.getElementById("dailySection").innerHTML = dates.map(date => {
+      const ds = toYMD(date);
+      const items = SALES.filter(s => s.from === s.to && s.from === ds && activeStores.has(s.store));
+
+      const byStore = {};
+      items.forEach(item => {
+        if (!byStore[item.store]) byStore[item.store] = { high:[], low:[], fallback:[] };
+        if (item.priority === 2)      byStore[item.store].high.push(item);
+        else if (item.priority === 1) byStore[item.store].low.push(item);
+        else                          byStore[item.store].fallback.push(item);
+      });
+
+      const cards = Object.entries(byStore).map(([store, {high, low, fallback}]) => {
+        const th = [...high].sort((a,b)=>b.prominence-a.prominence).slice(0,MAX_HIGH);
+        let tl   = [...low ].sort((a,b)=>b.prominence-a.prominence).slice(0,MAX_LOW);
+        // 最低3品に満たない場合は除外品（priority:0）から補充
+        const shortage = 3 - th.length - tl.length;
+        if (shortage > 0) {
+          const fb = [...fallback].sort((a,b)=>b.prominence-a.prominence).slice(0, shortage);
+          tl = [...tl, ...fb];
+        }
+        const hasLow = tl.length > 0;
+        const hasHigh = th.length > 0;
+
+        // 肉・野菜: first item visible, rest extra
+        // その他セクション: entirely extra
+        return `
+          <div class="sale-card" data-store="${store}" onclick="toggle(this)">
+            <div class="card-header">
+              <span>${store} 本日限り</span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            <div class="card-body">
+              ${hasHigh ? `
+                <div class="section-label">肉・野菜</div>
+                ${th.map((it, i) => itemRow(it, "", i > 1)).join("")}
+              ` : ""}
+              ${hasHigh && hasLow ? `<div class="section-divider extra"></div>` : ""}
+              ${hasLow ? `
+                <div class="section-label extra">その他</div>
+                ${tl.map(it => itemRow(it, "priority-low", true)).join("")}
+              ` : ""}
+            </div>
+          </div>`;
+      }).join("");
+
+      return `<div class="day-col">${cards || `<div class="empty-day">特売なし</div>`}</div>`;
+    }).join("");
+
+    // ── モバイル縦スクロールビュー ──
+    if (mobile) {
+      document.getElementById("calMobile").innerHTML = dates.map(date => {
+        const ds = toYMD(date);
+        const dow = date.getDay();
+        const isToday = ds === TODAY;
+        const dowNames = DAY_NAMES;
+        const satCls = dow===6 ? " sat":"", sunCls = dow===0 ? " sun":"", todayCls = isToday ? " today":"";
+
+        // バナー（期間特売）
+        const dayBanners = Object.values(
+          SALES.filter(s => s.from !== s.to && s.from <= ds && s.to >= ds && activeStores.has(s.store))
+            .reduce((acc, item) => {
+              const k = `${item.store}|${item.from}|${item.to}`;
+              if (!acc[k]) acc[k] = { store:item.store, items:[] };
+              acc[k].items.push(item); return acc;
+            }, {})
+        ).map(g => {
+          const lead = [...g.items].sort((a,b)=>b.prominence-a.prominence)[0];
+          const rest = [...g.items].sort((a,b)=>b.prominence-a.prominence).slice(1);
+          return `<div class="banner-event" data-store="${g.store}" onclick="toggle(this)" style="margin-bottom:4px">
+            <div class="banner-strip">
+              <span class="banner-store-name">${g.store}</span>
+              <span class="banner-sep"></span>
+              <span class="banner-lead"><span class="banner-lead-name">${stripOrigin(lead.name)}</span>
+                <span class="banner-lead-price">${lead.price}円</span><span class="banner-lead-unit">/${lead.unit}</span></span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            ${rest.length ? `<div class="banner-extra">${rest.map(it=>`
+              <div class="banner-extra-item"><span class="banner-extra-name">${stripOrigin(it.name)}</span>
+              <span class="banner-extra-price">${it.price}円<span class="banner-extra-unit">/${it.unit}</span></span></div>`).join("")}
+            </div>` : ""}
+          </div>`;
+        }).join("");
+
+        // サミット品種別
+        const summitItems = SUMMIT_MONTHLY[ds] || [];
+        const summitHtml = activeStores.has("サミット") && summitItems.length ? `
+          <div class="summit-band-cell" onclick="this.classList.toggle('expanded')" style="margin-bottom:4px">
+            <div class="summit-band-header">
+              <span class="summit-band-store">サミット</span>
+              <span class="banner-sep"></span>
+              <span class="summit-band-count">${summitItems[0]}${summitItems.length>1?` 他${summitItems.length-1}品目`:""}</span>
+              <span class="toggle-icon">▼</span>
+            </div>
+            <div class="summit-band-list">${summitItems.map(i=>`<div class="summit-band-item">・${i}</div>`).join("")}</div>
+          </div>` : "";
+
+        // 本日限り
+        const dayItems = SALES.filter(s => s.from === s.to && s.from === ds && activeStores.has(s.store));
+        const dailyHtml = dayItems.length ? dayItems.sort((a,b)=>b.prominence-a.prominence).map(it=>
+          `<div class="item-row"><span class="item-name">${it.store} ${stripOrigin(it.name)}</span>
+           <span class="item-price-wrap"><span class="item-price">${it.price}円</span><span class="item-unit">/${it.unit}</span></span></div>`
+        ).join("") : "";
+
+        return `<div class="mobile-day${satCls}${sunCls}${todayCls}">
+          <div class="mobile-day-header${todayCls}">
+            <span class="mobile-day-num">${date.getDate()}</span>
+            <span class="mobile-day-dow">${dowNames[dow]}</span>
+            ${isToday ? '<span class="mobile-today-badge">TODAY</span>' : ""}
+          </div>
+          <div class="mobile-day-body">
+            ${dayBanners}
+            ${summitHtml}
+            ${dailyHtml || ""}
+          </div>
+        </div>`;
+      }).join("");
+    }
+  }
+
+  function fitItems() {
+    document.querySelectorAll('.item-name, .banner-extra-name').forEach(el => {
+      el.style.fontSize = '';
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      while (el.scrollWidth > el.clientWidth && size > 7) {
+        size -= 0.5;
+        el.style.fontSize = size + 'px';
+      }
+    });
+  }
+
+  function render() {
+    _render();
+    requestAnimationFrame(fitItems);
+  }
+
+  render();
+  window.addEventListener('resize', () => render());
+</script>
+</body>
+</html>

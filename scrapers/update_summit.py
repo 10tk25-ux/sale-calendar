@@ -379,7 +379,18 @@ def main():
                             help="対象月を手動指定（省略時は実行日から自動判定）")
     args = arg_parser.parse_args()
 
+    # プロセス継承がない場合に備え User スコープからも取得を試みる
     api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Environment") as k:
+                api_key, _ = winreg.QueryValueEx(k, "ANTHROPIC_API_KEY")
+            if api_key:
+                os.environ["ANTHROPIC_API_KEY"] = api_key
+        except Exception:
+            pass
     if not api_key:
         print("エラー: 環境変数 ANTHROPIC_API_KEY が設定されていません", file=sys.stderr)
         sys.exit(1)

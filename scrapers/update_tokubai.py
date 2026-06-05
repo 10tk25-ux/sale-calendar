@@ -127,21 +127,26 @@ def patch_sales(html: str, entries: list[dict]) -> str:
 
 # ── メイン ────────────────────────────────────────────
 
+def _load_api_key() -> str:
+    """環境変数 → .env ファイルの順で ANTHROPIC_API_KEY を取得"""
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key:
+        return key
+    env_file = Path(__file__).parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            if line.startswith("ANTHROPIC_API_KEY="):
+                key = line.split("=", 1)[1].strip()
+                if key:
+                    os.environ["ANTHROPIC_API_KEY"] = key
+                    return key
+    return ""
+
+
 def main():
-    # プロセス継承がない場合に備え User スコープからも取得を試みる
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = _load_api_key()
     if not api_key:
-        try:
-            import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                r"Environment") as k:
-                api_key, _ = winreg.QueryValueEx(k, "ANTHROPIC_API_KEY")
-            if api_key:
-                os.environ["ANTHROPIC_API_KEY"] = api_key
-        except Exception:
-            pass
-    if not api_key:
-        print("エラー: 環境変数 ANTHROPIC_API_KEY が設定されていません", file=sys.stderr)
+        print("エラー: ANTHROPIC_API_KEY が環境変数にも .env にも見つかりません", file=sys.stderr)
         sys.exit(1)
 
     client = anthropic.Anthropic(api_key=api_key)

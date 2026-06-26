@@ -134,7 +134,7 @@ def _load_api_key() -> str:
         return key
     env_file = Path(__file__).parent / ".env"
     if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
+        for line in env_file.read_text(encoding="utf-8-sig").splitlines():
             if line.startswith("ANTHROPIC_API_KEY="):
                 key = line.split("=", 1)[1].strip()
                 if key:
@@ -230,29 +230,46 @@ def main():
 def _push_to_github():
     """index.html の変更を GitHub Pages へ push"""
     import subprocess
+    log_file = Path(__file__).parent / "git_push.log"
+
+    def _log(msg: str):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        line = f"[{ts}] {msg}\n"
+        print(msg, file=sys.stderr)
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(line)
+
     try:
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M')
-        result = subprocess.run(
+
+        r_add = subprocess.run(
             ["git", "-C", str(REPO_PATH), "add", "index.html"],
             capture_output=True, text=True
         )
-        result = subprocess.run(
+        _log(f"git add rc={r_add.returncode} out={r_add.stdout.strip()!r} err={r_add.stderr.strip()!r}")
+
+        r_commit = subprocess.run(
             ["git", "-C", str(REPO_PATH), "commit", "-m", f"自動更新: {now_str}"],
             capture_output=True, text=True
         )
-        if "nothing to commit" in result.stdout:
-            print("GitHub: 変更なし（スキップ）", file=sys.stderr)
+        combined = r_commit.stdout + r_commit.stderr
+        _log(f"git commit rc={r_commit.returncode} out={r_commit.stdout.strip()!r} err={r_commit.stderr.strip()!r}")
+
+        if "nothing to commit" in combined or r_commit.returncode != 0:
+            _log("GitHub: 変更なし（スキップ）またはコミット失敗")
             return
-        result = subprocess.run(
+
+        r_push = subprocess.run(
             ["git", "-C", str(REPO_PATH), "push"],
             capture_output=True, text=True
         )
-        if result.returncode == 0:
-            print("GitHub Pages へ push 完了", file=sys.stderr)
+        _log(f"git push rc={r_push.returncode} out={r_push.stdout.strip()!r} err={r_push.stderr.strip()!r}")
+        if r_push.returncode == 0:
+            _log("GitHub Pages へ push 完了")
         else:
-            print(f"[warn] git push 失敗: {result.stderr.strip()}", file=sys.stderr)
+            _log(f"[warn] git push 失敗")
     except Exception as e:
-        print(f"[warn] GitHub push エラー: {e}", file=sys.stderr)
+        _log(f"[warn] GitHub push エラー: {e}")
 
 
 def _run_nissin(client: anthropic.Anthropic) -> list[dict]:

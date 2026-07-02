@@ -24,7 +24,7 @@ import ok_scraper
 import nissin_scraper
 import anthropic
 
-REPO_PATH   = Path('G:/マイドライブ/Claude/sale-calendar')
+REPO_PATH   = Path(__file__).parent.parent
 HTML_PATH   = REPO_PATH / 'index.html'
 
 # ── カテゴリ順 ─────────────────────────────────────────

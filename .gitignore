@@ -3,6 +3,7 @@
 *.json
 *.log
 *.txt
+!scrapers/requirements.txt
 __pycache__/
 *.pyc
 .env

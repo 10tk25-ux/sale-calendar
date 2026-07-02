@@ -38,7 +38,7 @@ import summit_calendar_parser as parser
 SHOP_ID        = 825407
 XML_API_URL    = f"https://asp.shufoo.net/api/shopDetailNewXML/{SHOP_ID}/?crosstype=portal&useUtf=true&src=jsview"
 IMAGE_CACHE    = "https://ipqcache2.shufoo.net"
-REPO_PATH      = Path('G:/マイドライブ/Claude/sale-calendar')
+REPO_PATH      = Path(__file__).parent.parent
 HTML_PATH      = REPO_PATH / 'index.html'
 SCRAPERS_DIR   = Path(__file__).parent
 IMAGE_SAVE_PATH = REPO_PATH / 'summit_monthly_calendar.jpg'
@@ -241,8 +241,8 @@ def download_and_convert_pdf(flyer: dict, dest_path: Path) -> bool:
             return False
 
         # PDF を一時ファイルに保存
-        tmp_pdf = Path("C:/Temp/summit_chirashi_tmp.pdf")
-        tmp_pdf.parent.mkdir(parents=True, exist_ok=True)
+        import tempfile
+        tmp_pdf = Path(tempfile.gettempdir()) / "summit_chirashi_tmp.pdf"
         tmp_pdf.write_bytes(resp.content)
         print(f"    PDF保存: {tmp_pdf} ({len(resp.content)//1024}KB)", file=sys.stderr)
 
@@ -253,8 +253,7 @@ def download_and_convert_pdf(flyer: dict, dest_path: Path) -> bool:
         pix = page.get_pixmap(matrix=mat)
         print(f"    画像サイズ: {pix.width}x{pix.height}", file=sys.stderr)
 
-        # 一時JPEGに保存→GoogleドライブへコピーはPowerShellで
-        tmp_jpg = Path("C:/Temp/summit_chirashi_tmp.jpg")
+        tmp_jpg = Path(tempfile.gettempdir()) / "summit_chirashi_tmp.jpg"
         pix.save(str(tmp_jpg))
 
         # dest_path はGoogleドライブ（日本語パス）なので shutil.copy2 で
@@ -478,7 +477,8 @@ def main():
     else:
         # 複数候補: 全て解析して日数最多のものを採用（誤識別対策）
         print(f"\n[4-5] 候補 {len(calendar_flyers)} 件を全て解析して最良を選択...", file=sys.stderr)
-        tmp_path = Path("C:/Temp/summit_candidate_tmp.jpg")
+        import tempfile
+        tmp_path = Path(tempfile.gettempdir()) / "summit_candidate_tmp.jpg"
         best_flyer = None
         best_data: dict = {}
         best_days = -1

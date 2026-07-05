@@ -5,9 +5,15 @@ on:
     - cron: '0 22 1,25 * *'  # 毎月2日・26日 07:00 JST（前日22:00 UTC）
   workflow_dispatch:           # 手動実行も可能
 
+# 同時実行を防止（tokubai 更新とも直列化）
+concurrency:
+  group: pages-update
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
 

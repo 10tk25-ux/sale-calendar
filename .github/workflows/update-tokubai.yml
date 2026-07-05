@@ -2,12 +2,18 @@ name: オーケー・日進 特売情報更新
 
 on:
   schedule:
-    - cron: '0 21 */2 * *'  # 毎2日 06:00 JST
+    - cron: '0 21 * * *'      # 毎日 06:00 JST（21:00 UTC）
   workflow_dispatch:          # 手動実行も可能
+
+# 同時実行を防止（summit 更新とも直列化）
+concurrency:
+  group: pages-update
+  cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
 

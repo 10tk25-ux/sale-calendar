@@ -267,11 +267,11 @@ def build_entries(article_period: dict | None, image_results: list[dict]) -> lis
                 "from":       period["from"],
                 "to":         period["to"],
                 "name":       name,
-                "price":      item.get("price", 0),
-                "unit":       item.get("unit", "個"),
-                "priority":   item.get("priority", 1),
-                "prominence": item.get("prominence", 2),
-                "category":   item.get("category", "その他"),
+                "price":      item.get("price") or 0,
+                "unit":       item.get("unit") or "個",
+                "priority":   item.get("priority") or 1,
+                "prominence": item.get("prominence") or 2,
+                "category":   item.get("category") or "その他",
             })
     return entries
 

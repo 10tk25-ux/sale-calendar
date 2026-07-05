@@ -82,6 +82,9 @@ SALES_PATTERN = re.compile(
     re.DOTALL
 )
 
+# ヘッダー表示用の更新日時定数
+UPDATED_PATTERN = re.compile(r'const SALES_UPDATED\s*=\s*"[^"]*";')
+
 def entries_to_js(entries: list[dict]) -> str:
     """エントリリストをカテゴリ順 JavaScript 配列リテラルに変換"""
     lines = []
@@ -122,6 +125,9 @@ def patch_sales(html: str, entries: list[dict]) -> str:
         print("警告: SALES ブロックが見つかりませんでした", file=sys.stderr)
     else:
         print(f"SALES ブロックを {len(entries)} エントリで更新しました", file=sys.stderr)
+
+    # ヘッダー表示用の更新日時も書き換える
+    new_html = UPDATED_PATTERN.sub(f'const SALES_UPDATED = "{now_str}";', new_html)
     return new_html
 
 
@@ -223,53 +229,14 @@ def main():
     out.write_text(json.dumps(all_entries, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"JSON保存: {out}", file=sys.stderr)
 
-    # GitHub Pages へ自動 push
-    _push_to_github()
-
-
-def _push_to_github():
-    """index.html の変更を GitHub Pages へ push"""
-    import subprocess
-    log_file = Path(__file__).parent / "git_push.log"
-
-    def _log(msg: str):
-        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        line = f"[{ts}] {msg}\n"
-        print(msg, file=sys.stderr)
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(line)
-
-    try:
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M')
-
-        r_add = subprocess.run(
-            ["git", "-C", str(REPO_PATH), "add", "index.html"],
-            capture_output=True, text=True
-        )
-        _log(f"git add rc={r_add.returncode} out={r_add.stdout.strip()!r} err={r_add.stderr.strip()!r}")
-
-        r_commit = subprocess.run(
-            ["git", "-C", str(REPO_PATH), "commit", "-m", f"自動更新: {now_str}"],
-            capture_output=True, text=True
-        )
-        combined = r_commit.stdout + r_commit.stderr
-        _log(f"git commit rc={r_commit.returncode} out={r_commit.stdout.strip()!r} err={r_commit.stderr.strip()!r}")
-
-        if "nothing to commit" in combined or r_commit.returncode != 0:
-            _log("GitHub: 変更なし（スキップ）またはコミット失敗")
-            return
-
-        r_push = subprocess.run(
-            ["git", "-C", str(REPO_PATH), "push"],
-            capture_output=True, text=True
-        )
-        _log(f"git push rc={r_push.returncode} out={r_push.stdout.strip()!r} err={r_push.stderr.strip()!r}")
-        if r_push.returncode == 0:
-            _log("GitHub Pages へ push 完了")
-        else:
-            _log(f"[warn] git push 失敗")
-    except Exception as e:
-        _log(f"[warn] GitHub push エラー: {e}")
+    # GitHub Pages へ自動 push（失敗したら run 自体を失敗にして通知させる）
+    import git_utils
+    ok = git_utils.push_to_github(
+        REPO_PATH, ["index.html"],
+        log_file=Path(__file__).parent / "git_push.log",
+    )
+    if not ok:
+        sys.exit(1)
 
 
 def _run_nissin(client: anthropic.Anthropic) -> list[dict]:

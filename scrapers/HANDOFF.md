@@ -1,5 +1,20 @@
 # 特売カレンダー 引き継ぎメモ
-作成: 2026-04-30
+作成: 2026-04-30 / 最終更新: 2026-07-05
+
+---
+
+## ⚠️ 2026-07-05 アーキテクチャ再設計（重要）
+
+**更新経路は GitHub Actions のみ。ローカルPCのスケジュールタスクは無効化済み。**
+
+- 理由: ローカルタスクと Actions が両方 scrape→push して衝突し、push 拒否・データ分岐が頻発していた
+- ローカルの Claude スケジュールタスク（update-tokubai-sales / update-summit-calendar）は無効化済み。**再有効化しないこと**
+- `.github/workflows/update-tokubai.yml`: 毎日 06:00 JST（21:00 UTC）
+- `.github/workflows/update-summit.yml`: 毎月2日・26日 07:00 JST
+- push は `scrapers/git_utils.py` の `push_to_github()` に共通化（pull --rebase -X theirs + 3回リトライ、失敗時 exit 1 → GitHub が失敗メール通知）
+- ヘッダーに `SALES_UPDATED` の日時を表示（update_tokubai.py が書き換える）
+- ローカルリポジトリは閲覧・開発用。最新化は `git pull`
+- ライブサイト: https://10tk25-ux.github.io/sale-calendar/
 
 ---
 
